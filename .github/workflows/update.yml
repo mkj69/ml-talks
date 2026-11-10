@@ -1,0 +1,63 @@
+name: Update index and deploy
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"   # every Monday 03:17 UTC
+  workflow_dispatch:
+    inputs:
+      budget:
+        description: "Max event pages to crawl this run (0 = just rebuild from cache)"
+        default: "20000"
+  push:
+    branches: [main]
+    paths: ["site/**", "scraper/**", ".github/workflows/**"]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build index (crawls only new pages; everything else comes from data/pages cache)
+        env:
+          BUDGET: ${{ github.event_name == 'push' && '0' || github.event.inputs.budget || '20000' }}
+        run: python scraper/build.py --budget "$BUDGET"
+      - name: Commit crawl cache
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/pages data/listings
+          git diff --cached --quiet || (git commit -m "data: update crawl cache $(date -u +%F)" && git push)
+      - name: Assemble site
+        run: |
+          mkdir -p _site/data
+          cp -r site/* _site/
+          cp -r data/manifest.json data/papers data/abstracts _site/data/
+          python3 - <<'PY'
+          import json, os
+          p = "_site/data/manifest.json"
+          m = json.load(open(p))
+          m["repo"] = f"https://github.com/{os.environ['GITHUB_REPOSITORY']}"
+          json.dump(m, open(p, "w"), ensure_ascii=False)
+          PY
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: pages
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ML Talks</title>
+<meta name="description" content="NeurIPS / ICML / ICLR / CVPR / ICCV / ECCV / ACL / EMNLP / NAACL 论文与报告视频索引，手机可看。">
+<meta name="theme-color" content="#0f0f10" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ML Talks">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <a class="logo" href="#/" aria-label="首页"><img src="icon.svg" alt=""><span>ML Talks</span></a>
+  <form class="search" id="searchForm" role="search">
+    <input id="q" type="search" placeholder="搜索标题、作者、主题…" autocomplete="off" enterkeyhint="search">
+  </form>
+  <button class="iconbtn" id="libBtn" aria-label="收藏与历史" title="收藏与历史">
+    <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>
+  </button>
+</header>
+
+<nav class="filters" id="filters">
+  <div class="row chips" id="fieldChips"></div>
+  <div class="row chips" id="confChips"></div>
+  <div class="row">
+    <select id="yearSel" aria-label="年份"></select>
+    <div class="chips" id="kindChips"></div>
+  </div>
+  <div class="row meta">
+    <label class="toggle"><input type="checkbox" id="onlyVideo" checked> 只看有视频</label>
+    <span id="count"></span>
+  </div>
+</nav>
+
+<main id="home">
+  <div class="grid" id="grid"></div>
+  <div id="sentinel" class="loading"></div>
+</main>
+
+<main id="watch" hidden>
+  <div class="player-wrap"><div id="player" class="player"></div></div>
+  <div class="watch-body">
+    <div id="vidChips" class="chips vidchips"></div>
+    <h1 id="wTitle"></h1>
+    <div id="wMeta" class="wmeta"></div>
+    <div id="wAuthors" class="authors"></div>
+    <div id="wLinks" class="links"></div>
+    <details id="wAbsBox" class="abs"><summary>摘要</summary><p id="wAbs"></p></details>
+    <h2 class="more-h">同一会议的更多报告</h2>
+    <div id="related" class="list"></div>
+  </div>
+</main>
+
+<footer class="foot">
+  <p>视频由各会议官方平台（SlidesLive、ACL Anthology、YouTube、Vimeo、Facebook）提供并播放，本站只做索引和嵌入，不存储任何视频。
+  部分视频需在会议官网登录或注册后才能观看。数据更新于 <span id="updated">—</span>。
+  <a href="https://github.com/" id="repoLink">源代码</a></p>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>

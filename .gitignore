@@ -1,0 +1,8 @@
+.cache/
+_site/
+__pycache__/
+*.tmp
+# generated from data/pages + data/listings + official metadata by scraper/build.py
+data/papers/
+data/abstracts/
+data/manifest.json
