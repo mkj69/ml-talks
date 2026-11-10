@@ -1,10 +1,10 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>ML Talks</title>
-<meta name="description" content="NeurIPS / ICML / ICLR / CVPR / ICCV / ECCV / ACL / EMNLP / NAACL 论文与报告视频索引，手机可看。">
+<meta name="description" content="Browse talk videos from NeurIPS, ICML, ICLR, CVPR, ICCV, ECCV, ACL, EMNLP and NAACL, on any device.">
 <meta name="theme-color" content="#0f0f10" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -16,11 +16,11 @@
 </head>
 <body>
 <header class="top">
-  <a class="logo" href="#/" aria-label="首页"><img src="icon.svg" alt=""><span>ML Talks</span></a>
+  <a class="logo" href="#/" aria-label="Home"><img src="icon.svg" alt=""><span>ML Talks</span></a>
   <form class="search" id="searchForm" role="search">
-    <input id="q" type="search" placeholder="搜索标题、作者、主题…" autocomplete="off" enterkeyhint="search">
+    <input id="q" type="search" placeholder="Search titles, authors, topics…" autocomplete="off" enterkeyhint="search">
   </form>
-  <button class="iconbtn" id="libBtn" aria-label="收藏与历史" title="收藏与历史">
+  <button class="iconbtn" id="libBtn" aria-label="Saved and history" title="Saved and history">
     <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>
   </button>
 </header>
@@ -29,11 +29,11 @@
   <div class="row chips" id="fieldChips"></div>
   <div class="row chips" id="confChips"></div>
   <div class="row">
-    <select id="yearSel" aria-label="年份"></select>
+    <select id="yearSel" aria-label="Year"></select>
     <div class="chips" id="kindChips"></div>
   </div>
   <div class="row meta">
-    <label class="toggle"><input type="checkbox" id="onlyVideo" checked> 只看有视频</label>
+    <label class="toggle"><input type="checkbox" id="onlyVideo" checked> Only with video</label>
     <span id="count"></span>
   </div>
 </nav>
@@ -51,16 +51,16 @@
     <div id="wMeta" class="wmeta"></div>
     <div id="wAuthors" class="authors"></div>
     <div id="wLinks" class="links"></div>
-    <details id="wAbsBox" class="abs"><summary>摘要</summary><p id="wAbs"></p></details>
-    <h2 class="more-h">同一会议的更多报告</h2>
+    <details id="wAbsBox" class="abs"><summary>Abstract</summary><p id="wAbs"></p></details>
+    <h2 class="more-h">More from this conference</h2>
     <div id="related" class="list"></div>
   </div>
 </main>
 
 <footer class="foot">
-  <p>视频由各会议官方平台（SlidesLive、ACL Anthology、YouTube、Vimeo、Facebook）提供并播放，本站只做索引和嵌入，不存储任何视频。
-  部分视频需在会议官网登录或注册后才能观看。数据更新于 <span id="updated">—</span>。
-  <a href="https://github.com/" id="repoLink">源代码</a></p>
+  <p>Videos are hosted and played by each conference's official platforms (SlidesLive, ACL Anthology, YouTube, Vimeo, Facebook).
+  This site only indexes and links to them and stores no video. Some talks require signing in on the conference site.
+  Data updated <span id="updated">—</span>. <a href="https://github.com/" id="repoLink">Source code</a></p>
 </footer>
 
 <script src="app.js"></script>

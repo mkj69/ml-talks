@@ -4,7 +4,7 @@
   const DATA = "data/";
   let CONF_NAMES = { neurips: "NeurIPS", icml: "ICML", iclr: "ICLR" };
   let CONF_FIELD = { neurips: "ml", icml: "ml", iclr: "ml" };
-  const FIELDS = { all: "全部领域", ml: "机器学习", cv: "计算机视觉", nlp: "NLP" };
+  const FIELDS = { all: "All fields", ml: "Machine learning", cv: "Computer vision", nlp: "NLP" };
   const KIND_ORDER = ["Oral", "Spotlight", "Poster", "Long", "Main", "Short", "Findings", "Tutorial", "Invited Talk", "Workshop", "Demo", "Industry", "Student", "Competition"];
   const PAGE = 48;
 
@@ -61,13 +61,13 @@
   function thumbHTML(r) {
     const src = thumbURL(r);
     const n = r.vs ? r.vs.length : 0;
-    const badge = n ? `<span class="badge">${n > 1 ? n + " 个视频" : srcName(r.vs[0][0])}</span>` : `<span class="badge none">无视频</span>`;
+    const badge = n ? `<span class="badge">${n > 1 ? n + " videos" : srcName(r.vs[0][0])}</span>` : `<span class="badge none">No video</span>`;
     const img = src ? `<img loading="lazy" decoding="async" src="${esc(src)}" alt="" onerror="this.remove()">` : "";
     return `<div class="thumb">${placeholder(r)}${img}${badge}</div>`;
   }
   function srcName(s) { return { sl: "SlidesLive", yt: "YouTube", vm: "Vimeo", fb: "Facebook", mp4: "ACL Anthology" }[s] || s; }
   function link(r) { return `#/w/${r.c}/${r.y}/${r.id}`; }
-  function authorsShort(a) { if (!a || !a.length) return ""; return a.length > 3 ? a.slice(0, 3).join(", ") + " 等" : a.join(", "); }
+  function authorsShort(a) { if (!a || !a.length) return ""; return a.length > 3 ? a.slice(0, 3).join(", ") + " et al." : a.join(", "); }
 
   function cardHTML(r) {
     return `<a class="card" href="${link(r)}">${thumbHTML(r)}<div class="info"><h3>${esc(r.t)}</h3>
@@ -85,20 +85,19 @@
     const present = new Set(manifest.items.map((m) => m.conf));
     const confs = Object.keys(CONF_NAMES).filter((c) => present.has(c) && (state.field === "all" || CONF_FIELD[c] === state.field));
     $("fieldChips").innerHTML = Object.keys(FIELDS).map((f) => `<button class="chip ${state.field === f ? "on" : ""}" data-field="${f}">${FIELDS[f]}</button>`).join("");
-    $("confChips").innerHTML = ["all", ...confs].map((c) => `<button class="chip ${state.conf === c ? "on" : ""}" data-conf="${c}">${c === "all" ? "全部会议" : CONF_NAMES[c]}</button>`).join("");
+    $("confChips").innerHTML = ["all", ...confs].map((c) => `<button class="chip ${state.conf === c ? "on" : ""}" data-conf="${c}">${c === "all" ? "All conferences" : CONF_NAMES[c]}</button>`).join("");
     const years = [...new Set(manifest.items.filter((m) => inField(m) && (state.conf === "all" || m.conf === state.conf)).map((m) => m.year))].sort((a, b) => b - a);
-    $("yearSel").innerHTML = `<option value="all">全部年份</option>` + years.map((y) => `<option value="${y}">${y}</option>`).join("");
+    $("yearSel").innerHTML = `<option value="all">All years</option>` + years.map((y) => `<option value="${y}">${y}</option>`).join("");
     $("yearSel").value = String(state.year);
     renderKinds();
     $("onlyVideo").checked = state.onlyVideo;
   }
   function renderKinds() {
     const kinds = availableKinds.length ? availableKinds : (state.kind !== "all" ? [state.kind] : []);
-    $("kindChips").innerHTML = ["all", ...kinds].map((k) => `<button class="chip ${state.kind === k ? "on" : ""}" data-kind="${esc(k)}">${k === "all" ? "全部类型" : kindZh(k)}</button>`).join("");
+    $("kindChips").innerHTML = ["all", ...kinds].map((k) => `<button class="chip ${state.kind === k ? "on" : ""}" data-kind="${esc(k)}">${k === "all" ? "All types" : kindZh(k)}</button>`).join("");
   }
   function kindZh(k) {
-    return { Oral: "口头报告", Spotlight: "Spotlight", Poster: "海报", Tutorial: "教程", "Invited Talk": "特邀报告", Workshop: "研讨会",
-      Long: "长文", Main: "主会", Short: "短文", Findings: "Findings", Demo: "Demo", Industry: "工业", Student: "学生研讨", Competition: "竞赛" }[k] || k;
+    return { Long: "Long paper", Short: "Short paper", Main: "Main track", Student: "Student research", Paper: "Paper" }[k] || k;
   }
 
   $("fieldChips").addEventListener("click", (e) => { const b = e.target.closest("[data-field]"); if (b) { state.field = b.dataset.field; state.conf = "all"; state.kind = "all"; changed(); } });
@@ -119,7 +118,14 @@
   $("searchForm").addEventListener("submit", (e) => { e.preventDefault(); $("q").blur(); if (location.hash.startsWith("#/w/")) location.hash = "#/"; });
   $("libBtn").addEventListener("click", () => { location.hash = location.hash === "#/lib" ? "#/" : "#/lib"; });
 
+  // keep the year on one that actually has videos for the current field/conference
+  function ensureYear() {
+    if (state.year === "all") return;
+    const ys = manifest.items.filter((m) => inField(m) && (state.conf === "all" || m.conf === state.conf) && m.videos > 0).map((m) => m.year);
+    if (ys.length && !ys.includes(state.year)) state.year = Math.max(...ys);
+  }
   function changed() {
+    ensureYear();
     store.set("filters", { field: state.field, conf: state.conf, year: state.year, kind: state.kind, onlyVideo: state.onlyVideo });
     renderFilters();
     if (!location.hash.startsWith("#/") || location.hash.startsWith("#/w/") || location.hash === "#/lib") location.hash = "#/";
@@ -133,7 +139,7 @@
     viewMode = "home";
     shown = 0;
     $("grid").innerHTML = "";
-    $("sentinel").textContent = "加载中…";
+    $("sentinel").textContent = "Loading…";
     const sets = wantedSets();
     const terms = state.q.toLowerCase().split(/\s+/).filter(Boolean);
     const out = [];
@@ -156,7 +162,7 @@
     renderKinds();
     if (terms.length) out.sort((a, b) => score(b, terms) - score(a, terms));
     results = out;
-    $("count").textContent = `${out.length.toLocaleString()} 条`;
+    $("count").textContent = `${out.length.toLocaleString()} talks`;
     paint(true);
   }
   function score(r, terms) {
@@ -171,8 +177,8 @@
     const next = results.slice(shown, shown + PAGE);
     $("grid").insertAdjacentHTML("beforeend", next.map(cardHTML).join(""));
     shown += next.length;
-    if (!results.length) $("grid").innerHTML = `<div class="empty">没有找到匹配的报告。试试关闭“只看有视频”，或换个关键词。</div>`;
-    $("sentinel").textContent = shown < results.length ? "加载更多…" : "";
+    if (!results.length) $("grid").innerHTML = `<div class="empty">No matching talks. Try turning off “Only with video” or another search.</div>`;
+    $("sentinel").textContent = shown < results.length ? "Loading more…" : "";
   }
   new IntersectionObserver((es) => {
     if (es[0].isIntersecting && viewMode === "home" && shown < results.length && !$("home").hidden) paint(false);
@@ -196,10 +202,10 @@
     };
     const [f, h] = await Promise.all([rowsFor(favs), rowsFor(hist.slice(0, 60))]);
     $("grid").innerHTML =
-      `<div class="libhead" style="grid-column:1/-1"><h2>收藏 (${f.length})</h2></div>` +
-      (f.length ? f.map(cardHTML).join("") : `<div class="empty" style="grid-column:1/-1">还没有收藏。在视频页点“收藏”即可。</div>`) +
-      `<div class="libhead" style="grid-column:1/-1"><h2>观看历史</h2>${h.length ? '<button class="chip" id="clearHist">清空</button>' : ""}</div>` +
-      (h.length ? h.map(cardHTML).join("") : `<div class="empty" style="grid-column:1/-1">还没有观看记录。</div>`);
+      `<div class="libhead" style="grid-column:1/-1"><h2>Saved (${f.length})</h2></div>` +
+      (f.length ? f.map(cardHTML).join("") : `<div class="empty" style="grid-column:1/-1">Nothing saved yet. Tap “Save” on a talk page.</div>`) +
+      `<div class="libhead" style="grid-column:1/-1"><h2>History</h2>${h.length ? '<button class="chip" id="clearHist">Clear</button>' : ""}</div>` +
+      (h.length ? h.map(cardHTML).join("") : `<div class="empty" style="grid-column:1/-1">No watch history yet.</div>`);
     $("sentinel").textContent = "";
     const ch = $("clearHist");
     if (ch) ch.onclick = () => { store.set("hist", []); showLibrary(); };
@@ -211,7 +217,7 @@
   }
   async function play(r, v) {
     const p = $("player");
-    if (!v) { p.innerHTML = outLink("暂未找到这篇论文的视频", r.u, "去会议官网看看"); return; }
+    if (!v) { p.innerHTML = outLink("No video found for this talk yet", r.u, "Check the conference page"); return; }
     const [src, id] = v;
     if (src === "yt") {
       p.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}?playsinline=1&rel=0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
@@ -227,11 +233,11 @@
       const bg = r.th ? `<img src="${esc(r.th)}" alt="" onerror="this.remove()">` : "";
       p.innerHTML = `<div class="handoff ${r.c} f-${CONF_FIELD[r.c] || "ml"}">${bg}<div class="scrim"></div>
         <div class="hcontent">
-          <a class="playbig" href="https://slideslive.com/${esc(id)}" target="_blank" rel="noopener" aria-label="在 SlidesLive 观看">
+          <a class="playbig" href="https://slideslive.com/${esc(id)}" target="_blank" rel="noopener" aria-label="Watch on SlidesLive">
             <svg viewBox="0 0 24 24" width="34" height="34"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></a>
-          <a class="hbtn" href="https://slideslive.com/${esc(id)}" target="_blank" rel="noopener">在 SlidesLive 观看</a>
-          <a class="hlink" href="${esc(r.u)}" target="_blank" rel="noopener">或在会议官网观看</a>
-          <div class="hnote">会议方限制了视频只能在官方网站播放，点击后在新页面打开</div>
+          <a class="hbtn" href="https://slideslive.com/${esc(id)}" target="_blank" rel="noopener">Watch on SlidesLive</a>
+          <a class="hlink" href="${esc(r.u)}" target="_blank" rel="noopener">or watch on the conference site</a>
+          <div class="hnote">The conference only allows this video to play on official sites, so it opens in a new tab</div>
         </div></div>`;
     }
   }
@@ -239,13 +245,13 @@
     $("libBtn").classList.remove("on");
     const rows = await loadSet(conf, year);
     const r = rows.find((x) => x.id === id);
-    if (!r) { $("player").innerHTML = outLink("找不到这条记录", "#/", "回到首页"); return; }
+    if (!r) { $("player").innerHTML = outLink("This talk could not be found", "#/", "Back to home"); return; }
     document.title = r.t + " · ML Talks";
     const key = `${conf}/${year}/${id}`;
     store.set("hist", [key, ...store.get("hist", []).filter((k) => k !== key)].slice(0, 200));
 
     const vs = r.vs || [];
-    $("vidChips").innerHTML = vs.length > 1 ? vs.map((v, i) => `<button class="chip ${i === 0 ? "on" : ""}" data-i="${i}">视频 ${i + 1}</button>`).join("") : "";
+    $("vidChips").innerHTML = vs.length > 1 ? vs.map((v, i) => `<button class="chip ${i === 0 ? "on" : ""}" data-i="${i}">Video ${i + 1}</button>`).join("") : "";
     $("vidChips").onclick = (e) => {
       const b = e.target.closest("[data-i]"); if (!b) return;
       [...$("vidChips").children].forEach((c) => c.classList.toggle("on", c === b));
@@ -259,20 +265,20 @@
     const favs = store.get("favs", []);
     const isFav = favs.includes(key);
     const links = [
-      `<button id="favBtn" class="${isFav ? "primary" : ""}">${isFav ? "已收藏" : "收藏"}</button>`,
-      `<a href="${esc(r.u)}" target="_blank" rel="noopener">会议官网页面</a>`,
+      `<button id="favBtn" class="${isFav ? "primary" : ""}">${isFav ? "Saved" : "Save"}</button>`,
+      `<a href="${esc(r.u)}" target="_blank" rel="noopener">Conference page</a>`,
       r.or ? `<a href="${esc(r.or)}" target="_blank" rel="noopener">OpenReview</a>` : "",
-      r.pdf ? `<a href="${esc(r.pdf)}" target="_blank" rel="noopener">论文 PDF</a>` : "",
-      r.proj ? `<a href="${esc(r.proj)}" target="_blank" rel="noopener">项目主页</a>` : "",
-      vs[0] && vs[0][0] === "sl" ? `<a href="https://slideslive.com/${esc(vs[0][1])}" target="_blank" rel="noopener">在 SlidesLive 打开</a>` : "",
-      navigator.share ? `<button id="shareBtn">分享</button>` : "",
+      r.pdf ? `<a href="${esc(r.pdf)}" target="_blank" rel="noopener">PDF</a>` : "",
+      r.proj ? `<a href="${esc(r.proj)}" target="_blank" rel="noopener">Project page</a>` : "",
+      vs[0] && vs[0][0] === "sl" ? `<a href="https://slideslive.com/${esc(vs[0][1])}" target="_blank" rel="noopener">Open on SlidesLive</a>` : "",
+      navigator.share ? `<button id="shareBtn">Share</button>` : "",
     ];
     $("wLinks").innerHTML = links.join("");
     $("favBtn").onclick = () => {
       const f = store.get("favs", []);
       const on = !f.includes(key);
       store.set("favs", on ? [key, ...f] : f.filter((k) => k !== key));
-      $("favBtn").textContent = on ? "已收藏" : "收藏";
+      $("favBtn").textContent = on ? "Saved" : "Save";
       $("favBtn").classList.toggle("primary", on);
     };
     if ($("shareBtn")) $("shareBtn").onclick = () => navigator.share({ title: r.t, url: location.href }).catch(() => {});
@@ -321,6 +327,7 @@
     if (manifest.repo) $("repoLink").href = manifest.repo;
     const years = [...new Set(manifest.items.filter((m) => m.videos > 0).map((m) => m.year))].sort((a, b) => b - a);
     if (state.year !== "all" && !years.includes(state.year)) state.year = years[0] ?? "all";
+    ensureYear();
     renderFilters();
     route();
   })();
