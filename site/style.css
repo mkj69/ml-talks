@@ -131,6 +131,21 @@ main { padding: 8px 16px 24px; }
   background: linear-gradient(135deg, #343a40, #212529);
 }
 .player .out a { display: inline-block; margin-top: 12px; padding: 10px 18px; border-radius: 20px; background: #fff; color: #000; text-decoration: none; font-weight: 600; }
+.handoff { position: absolute; inset: 0; overflow: hidden; color: #fff; }
+.handoff.neurips, .handoff.f-ml { background: linear-gradient(135deg, #5f3dc4, #9775fa); }
+.handoff.icml { background: linear-gradient(135deg, #0b7285, #3bc9db); }
+.handoff.iclr { background: linear-gradient(135deg, #d9480f, #ffa94d); }
+.handoff.f-cv { background: linear-gradient(135deg, #1864ab, #4dabf7); }
+.handoff.f-nlp { background: linear-gradient(135deg, #a61e4d, #f06595); }
+.handoff img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.handoff .scrim { position: absolute; inset: 0; background: rgba(0,0,0,.45); }
+.hcontent { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 16px; text-align: center; }
+.playbig { width: 72px; height: 72px; border-radius: 50%; background: rgba(255,255,255,.95); color: #111; display: grid; place-items: center; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
+.playbig svg { margin-left: 4px; }
+.hbtn { padding: 10px 20px; border-radius: 22px; background: #fff; color: #111; text-decoration: none; font-weight: 650; font-size: 15px; }
+.hlink { color: #fff; font-size: 13px; opacity: .9; }
+.hnote { font-size: 12px; opacity: .75; max-width: 320px; }
+@media (max-width: 380px) { .playbig { width: 56px; height: 56px; } .hnote { display: none; } }
 .watch-body { padding: 12px 16px 24px; }
 .vidchips { margin-bottom: 8px; }
 .vidchips:empty { display: none; }

@@ -206,16 +206,6 @@
   }
 
   // ------------------------------------------------------------- watch
-  let slLoaded = null;
-  function loadSlidesLive() {
-    if (!slLoaded) slLoaded = new Promise((res, rej) => {
-      const s = document.createElement("script");
-      s.src = "https://slideslive.com/embed_presentation.js";
-      s.onload = res; s.onerror = rej;
-      document.head.appendChild(s);
-    });
-    return slLoaded;
-  }
   function outLink(text, href, label) {
     return `<div class="out"><div>${text}<br><a href="${esc(href)}" target="_blank" rel="noopener">${label}</a></div></div>`;
   }
@@ -232,15 +222,17 @@
     } else if (src === "fb") {
       p.innerHTML = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(id)}&show_text=false" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>`;
     } else if (src === "sl") {
-      const div = "sl-" + id + "-" + Date.now();
-      p.innerHTML = `<div class="sl" id="${div}"></div>`;
-      try {
-        await loadSlidesLive();
-        // eslint-disable-next-line no-undef
-        new SlidesLiveEmbed(div, { presentationId: id, autoPlay: false, verticalEnabled: true, verticalWhenWidthLte: 600, allowHiddenControlsWhenPaused: true, hideTitle: true });
-      } catch {
-        p.innerHTML = outLink("播放器加载失败", "https://slideslive.com/" + id, "在 SlidesLive 打开");
-      }
+      // Conferences restrict SlidesLive embeds to their own domains ("Domain not allowed"),
+      // so we hand off to SlidesLive's own page, where the talk is publicly viewable.
+      const bg = r.th ? `<img src="${esc(r.th)}" alt="" onerror="this.remove()">` : "";
+      p.innerHTML = `<div class="handoff ${r.c} f-${CONF_FIELD[r.c] || "ml"}">${bg}<div class="scrim"></div>
+        <div class="hcontent">
+          <a class="playbig" href="https://slideslive.com/${esc(id)}" target="_blank" rel="noopener" aria-label="在 SlidesLive 观看">
+            <svg viewBox="0 0 24 24" width="34" height="34"><path fill="currentColor" d="M8 5v14l11-7z"/></svg></a>
+          <a class="hbtn" href="https://slideslive.com/${esc(id)}" target="_blank" rel="noopener">在 SlidesLive 观看</a>
+          <a class="hlink" href="${esc(r.u)}" target="_blank" rel="noopener">或在会议官网观看</a>
+          <div class="hnote">会议方限制了视频只能在官方网站播放，点击后在新页面打开</div>
+        </div></div>`;
     }
   }
   async function showWatch(conf, year, id) {
