@@ -44,6 +44,7 @@
 </main>
 
 <main id="watch" hidden>
+  <div class="watch-main">
   <div class="player-wrap"><div id="player" class="player"></div></div>
   <div class="watch-body">
     <div id="vidChips" class="chips vidchips"></div>
@@ -55,6 +56,50 @@
     <h2 class="more-h">More from this conference</h2>
     <div id="related" class="list"></div>
   </div>
+  </div>
+  <button id="notesOpen" class="chip notes-open" aria-controls="notesPanel" aria-expanded="false" hidden>Notes &amp; Ask</button>
+  <button id="notesShade" class="notes-shade" aria-label="Close notes" tabindex="-1"></button>
+  <aside id="notesPanel" class="notes-panel" aria-labelledby="notesHeading" hidden>
+    <div class="notes-heading"><h2 id="notesHeading">Notes &amp; Ask</h2><button id="notesClose" class="chip notes-close">Close</button></div>
+    <div id="notesTabs" class="chips" role="tablist" aria-label="Talk notes">
+      <button id="notesAskTab" class="chip on" role="tab" aria-selected="true" aria-controls="notesAsk" data-notes-tab="ask">Ask</button>
+      <button id="notesNoteTab" class="chip" role="tab" aria-selected="false" aria-controls="notesNote" data-notes-tab="note" tabindex="-1">Note</button>
+      <button id="notesWordsTab" class="chip" role="tab" aria-selected="false" aria-controls="notesWords" data-notes-tab="words" tabindex="-1">Words</button>
+    </div>
+    <div class="notes-panes">
+      <section id="notesAsk" role="tabpanel" aria-labelledby="notesAskTab">
+        <p id="notesHint" class="notes-hint">Run <code>python3 agent/talks_agent.py</code> on your server, then <code>ssh -L 8787:localhost:8787 &lt;server&gt;</code>. Enter the agent URL and token in Connection below.</p>
+        <div id="notesChat" class="notes-chat" role="log" aria-label="Chat history" aria-live="polite"></div>
+        <form id="notesForm" class="notes-form">
+          <label for="notesQuestion">Question</label>
+          <textarea id="notesQuestion" rows="3" placeholder="Ask about this talk…"></textarea>
+          <div class="notes-fields">
+            <label>Agent<select id="notesAgent"><option value="claude">Claude Code</option><option value="codex">Codex</option></select></label>
+            <label>Time (mm:ss)<input id="notesTime" type="text" placeholder="mm:ss" autocomplete="off" aria-label="Time in minutes and seconds (optional)"></label>
+          </div>
+          <div class="notes-actions"><button id="notesSend" class="chip" type="submit" disabled>Send</button><button id="notesOrganize" class="chip" type="button" disabled>Organize into note</button></div>
+          <p id="notesStatus" class="notes-status" role="status"></p>
+        </form>
+      </section>
+      <section id="notesNote" class="notes-markdown" role="tabpanel" aria-labelledby="notesNoteTab" tabindex="0" hidden></section>
+      <section id="notesWords" role="tabpanel" aria-labelledby="notesWordsTab" tabindex="0" hidden></section>
+    </div>
+    <details id="notesConnection" class="notes-connection">
+      <summary>Connection · <span id="notesConnectionState">Not connected</span></summary>
+      <label>Agent URL<input id="notesURL" type="url" placeholder="http://localhost:8787" autocomplete="off"></label>
+      <label>Token<input id="notesToken" type="password" autocomplete="off" spellcheck="false"></label>
+      <button id="notesTest" class="chip" type="button">Test</button>
+      <p id="notesConnectionStatus" class="notes-status" role="status"></p>
+    </details>
+  </aside>
+</main>
+
+<main id="notesLibrary" hidden>
+  <div class="libhead"><h1>My notes</h1><a class="chip" href="#/lib">Library</a></div>
+  <div id="notedTalks" class="notes-list"></div>
+  <h2>Vocabulary</h2>
+  <input id="vocabSearch" type="search" placeholder="Search vocabulary…" aria-label="Search vocabulary">
+  <div id="allWords" class="notes-list"></div>
 </main>
 
 <footer class="foot">

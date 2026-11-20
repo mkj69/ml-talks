@@ -25,6 +25,7 @@
   let results = [];
   let shown = 0;
   let viewMode = "home";        // home | library
+  let routeToken = 0;
 
   // ------------------------------------------------------------- data
   async function getJSON(path) {
@@ -128,7 +129,7 @@
     ensureYear();
     store.set("filters", { field: state.field, conf: state.conf, year: state.year, kind: state.kind, onlyVideo: state.onlyVideo });
     renderFilters();
-    if (!location.hash.startsWith("#/") || location.hash.startsWith("#/w/") || location.hash === "#/lib") location.hash = "#/";
+    if (location.hash !== "#/") location.hash = "#/";
     else refresh();
   }
 
@@ -185,7 +186,7 @@
   }, { rootMargin: "800px" }).observe($("sentinel"));
 
   // ------------------------------------------------------------- library (favorites + history)
-  async function showLibrary() {
+  async function showLibrary(token = routeToken) {
     viewMode = "library";
     $("libBtn").classList.add("on");
     const favs = store.get("favs", []);
@@ -201,8 +202,9 @@
       return out;
     };
     const [f, h] = await Promise.all([rowsFor(favs), rowsFor(hist.slice(0, 60))]);
+    if (token !== routeToken) return;
     $("grid").innerHTML =
-      `<div class="libhead" style="grid-column:1/-1"><h2>Saved (${f.length})</h2></div>` +
+      `<div class="libhead" style="grid-column:1/-1"><h2>Saved (${f.length})</h2><a class="chip" href="#/notes">My notes</a></div>` +
       (f.length ? f.map(cardHTML).join("") : `<div class="empty" style="grid-column:1/-1">Nothing saved yet. Tap “Save” on a talk page.</div>`) +
       `<div class="libhead" style="grid-column:1/-1"><h2>History</h2>${h.length ? '<button class="chip" id="clearHist">Clear</button>' : ""}</div>` +
       (h.length ? h.map(cardHTML).join("") : `<div class="empty" style="grid-column:1/-1">No watch history yet.</div>`);
@@ -241,9 +243,10 @@
         </div></div>`;
     }
   }
-  async function showWatch(conf, year, id) {
+  async function showWatch(conf, year, id, token) {
     $("libBtn").classList.remove("on");
     const rows = await loadSet(conf, year);
+    if (token !== routeToken) return;
     const r = rows.find((x) => x.id === id);
     if (!r) { $("player").innerHTML = outLink("This talk could not be found", "#/", "Back to home"); return; }
     document.title = r.t + " · ML Talks";
@@ -256,6 +259,7 @@
       const b = e.target.closest("[data-i]"); if (!b) return;
       [...$("vidChips").children].forEach((c) => c.classList.toggle("on", c === b));
       play(r, vs[+b.dataset.i]);
+      if (notes) renderWords(notes);
     };
     play(r, vs[0]);
 
@@ -288,9 +292,10 @@
     const absKey = conf + "-" + year;
     if (!absCache.has(absKey)) absCache.set(absKey, getJSON("abstracts/" + absKey + ".json").catch(() => ({})));
     absCache.get(absKey).then((abs) => {
-      if (location.hash !== link(r)) return;
+      if (token !== routeToken) return;
       if (abs[id]) { $("wAbs").textContent = abs[id]; $("wAbsBox").hidden = false; }
     });
+    initNotes(r, absCache.get(absKey));
 
     // related: same conference-year, same topic first, with video
     const topic = r.tp && r.tp.split("->")[0];
@@ -299,17 +304,296 @@
     $("related").innerHTML = rel.slice(0, 20).map(itemHTML).join("");
   }
 
+  // ------------------------------------------------------------- notes panel
+  const NOTES = "https://raw.githubusercontent.com/mkj69/ml-talks-notes/main/";
+  const notesWide = window.matchMedia("(min-width: 1100px)");
+  let notes = null, notesPage = null, markdownReady;
+  function notesCurrent(n, signal = n.controller.signal) { return notes === n && !signal.aborted; }
+  function timeText(t) { return String(Math.floor(t / 60)).padStart(2, "0") + ":" + String(Math.floor(t % 60)).padStart(2, "0"); }
+  function hasTime(t) { return typeof t === "number" && Number.isFinite(t) && t >= 0; }
+  function noteLink(key) {
+    const m = String(key).match(/^([a-z]+)-(\d{4})-([A-Za-z0-9._-]+)$/);
+    return m ? `#/w/${m[1]}/${m[2]}/${m[3]}` : "";
+  }
+  async function notesFetch(path, signal) {
+    const r = await fetch(NOTES + path, { signal });
+    if (!r.ok) throw new Error("Notes unavailable");
+    return path.endsWith(".json") ? r.json() : r.text();
+  }
+  function loadMarkdown() {
+    if (!markdownReady) markdownReady = Promise.all([
+      ["marked", "https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"],
+      ["DOMPurify", "https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"],
+    ].map(([name, src]) => window[name] ? Promise.resolve() : new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      const fail = () => { clearTimeout(timer); script.remove(); reject(new Error("Markdown unavailable")); };
+      const timer = setTimeout(fail, 15000);
+      script.src = src; script.async = true;
+      script.onload = () => { clearTimeout(timer); window[name] ? resolve() : fail(); };
+      script.onerror = fail;
+      document.head.appendChild(script);
+    }))).catch((e) => { markdownReady = null; throw e; });
+    return markdownReady;
+  }
+  function renderMarkdown(el, body) {
+    el.innerHTML = window.DOMPurify.sanitize(window.marked.parse(body), { USE_PROFILES: { html: true }, FORBID_TAGS: ["style"], FORBID_ATTR: ["style", "id", "name"] });
+    el.querySelectorAll("a").forEach((a) => { a.target = "_blank"; a.rel = "noopener noreferrer"; });
+  }
+  async function renderNote(n) {
+    const source = n.note;
+    const body = source.replace(/^\uFEFF?---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, "");
+    const el = $("notesNote");
+    el.classList.remove("notes-plain");
+    el.textContent = n.noteLoaded ? (body.trim() ? "Loading note…" : "No note available yet.") : "Loading note…";
+    if (!body.trim()) return;
+    try {
+      await loadMarkdown();
+      if (!notesCurrent(n) || n.note !== source) return;
+      renderMarkdown(el, body);
+    } catch {
+      if (!notesCurrent(n) || n.note !== source) return;
+      el.textContent = body; el.classList.add("notes-plain");
+    }
+  }
+  function wordsHTML(entries, all) {
+    const canSeek = !all && document.querySelector("#player video");
+    return entries.map((v) => {
+      const href = noteLink(v.key);
+      const stamp = hasTime(v.t) ? (canSeek ? `<button class="chip" data-seek="${esc(v.t)}" aria-label="Seek to ${esc(timeText(v.t))}">[${esc(timeText(v.t))}]</button>` : `<span class="notes-time">[${esc(timeText(v.t))}]</span>`) : "";
+      return `<article class="notes-word"><h3>${esc(v.term)} ${stamp}</h3><p>${esc(v.explanation)}</p>${all ? `<div class="notes-source">${href ? `<a href="${esc(href)}">${esc(v.title || v.key)}</a>` : esc(v.title || v.key)}</div>` : ""}</article>`;
+    }).join("");
+  }
+  function renderWords(n) { $("notesWords").innerHTML = wordsHTML(n.vocab, false) || `<p class="notes-hint">${n.wordsLoaded ? "No words available yet." : "Loading words…"}</p>`; }
+  function selectNotesTab(tab) {
+    if (!notes) return;
+    notes.tab = tab;
+    $("notesTabs").querySelectorAll("button").forEach((b) => {
+      const on = b.dataset.notesTab === tab;
+      b.classList.toggle("on", on); b.setAttribute("aria-selected", String(on)); b.tabIndex = on ? 0 : -1;
+      $(b.getAttribute("aria-controls")).hidden = !on;
+    });
+    if (tab === "note") renderNote(notes);
+    if (tab === "words") renderWords(notes);
+  }
+  async function renderChat(n) {
+    const messages = n.pending ? [...n.messages, n.pending] : n.messages;
+    $("notesChat").innerHTML = messages.map((m) => `<div class="notes-message ${m.role === "user" ? "from-user" : ""}"><div class="notes-hint">${m.role === "user" ? "You" : m.agent === "claude" ? "Claude Code" : "Codex"}${hasTime(m.t) ? " · [" + esc(timeText(m.t)) + "]" : ""}</div><div class="notes-text">${esc(m.text)}</div></div>`).join("") + (n.busy ? `<div class="notes-message notes-hint">${n.busy === "ask" ? "Thinking…" : "Organizing note…"}</div>` : "");
+    $("notesChat").scrollTop = $("notesChat").scrollHeight;
+    if (!messages.some((m) => m.role === "assistant")) return;
+    const elements = $("notesChat").querySelectorAll(".notes-text");
+    try {
+      await loadMarkdown();
+      if (!notesCurrent(n) || !elements[0].isConnected) return;
+      messages.forEach((m, i) => {
+        if (m.role !== "assistant") return;
+        renderMarkdown(elements[i], m.text);
+        elements[i].classList.replace("notes-text", "notes-markdown");
+      });
+      $("notesChat").scrollTop = $("notesChat").scrollHeight;
+    } catch { /* Keep escaped plain text if Markdown is unavailable. */ }
+  }
+  function notesControls(n) {
+    const busy = !!n.busy || n.testing;
+    const ready = n.connected && n.agents[$("notesAgent").value] !== false;
+    $("notesSend").disabled = busy || !ready;
+    $("notesOrganize").disabled = busy || !ready || !n.messages.length;
+    $("notesTest").disabled = busy;
+    ["notesQuestion", "notesTime", "notesAgent"].forEach((id) => { $(id).disabled = !!n.busy; });
+    $("notesHint").hidden = n.connected;
+    $("notesConnectionState").textContent = n.testing ? "Testing…" : n.connected ? "Connected" : "Not connected";
+  }
+  async function agentFetch(n, path, body, signal) {
+    const url = new URL(n.url);
+    if (!/^https?:$/.test(url.protocol) || url.search || url.hash) throw new Error("Enter an HTTP or HTTPS agent URL.");
+    const headers = path === "/health" ? {} : { Authorization: "Bearer " + n.token };
+    if (body) headers["Content-Type"] = "application/json";
+    const r = await fetch(n.url + path, { method: body ? "POST" : "GET", headers, signal, ...(body ? { body: JSON.stringify(body) } : {}) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || "Agent request failed (" + r.status + ").");
+    return data;
+  }
+  async function testNotes(n) {
+    if (!n || n.busy || n.testing) return;
+    const signal = n.agentController.signal;
+    n.testing = true; $("notesConnectionStatus").textContent = "Testing connection…"; notesControls(n);
+    try {
+      const health = await agentFetch(n, "/health", null, signal);
+      if (!notesCurrent(n, signal)) return;
+      if (!health.ok) throw new Error("Agent is not ready.");
+      const chat = await agentFetch(n, "/chat/" + encodeURIComponent(n.key), null, signal);
+      if (!notesCurrent(n, signal)) return;
+      n.messages = Array.isArray(chat.messages) ? chat.messages : [];
+      n.connected = true; n.agents = health.agents || {};
+      const agent = $("notesAgent");
+      [...agent.options].forEach((o) => { o.disabled = n.agents[o.value] === false; });
+      if (n.agents[agent.value] === false) agent.value = n.agents.claude ? "claude" : "codex";
+      store.set("notesAgent", agent.value);
+      $("notesConnectionStatus").textContent = n.agents.claude === false && n.agents.codex === false ? "Connected, but neither agent is installed." : "Connection successful.";
+      renderChat(n);
+    } catch (e) {
+      if (!notesCurrent(n, signal)) return;
+      n.connected = false; $("notesConnectionStatus").textContent = "Could not connect. " + e.message;
+    } finally {
+      if (notesCurrent(n, signal)) { n.testing = false; notesControls(n); }
+    }
+  }
+  async function runNotes(action) {
+    const n = notes;
+    if (!n || !n.connected || n.busy || n.testing || n.agents[$("notesAgent").value] === false) return;
+    const question = $("notesQuestion").value.trim(), stamp = $("notesTime").value.trim();
+    if (action === "ask" && !question) { $("notesQuestion").focus(); return; }
+    if (action === "ask" && stamp && !/^\d+:[0-5]\d$/.test(stamp)) { $("notesStatus").textContent = "Use mm:ss for the time, or leave it empty."; $("notesTime").focus(); return; }
+    const t = stamp ? Number(stamp.split(":")[0]) * 60 + Number(stamp.split(":")[1]) : null;
+    if (action === "ask" && t !== null && !hasTime(t)) { $("notesStatus").textContent = "Enter a valid time."; return; }
+    const agent = $("notesAgent").value, signal = n.agentController.signal;
+    n.busy = action; n.pending = action === "ask" ? { role: "user", text: question, agent, t } : null;
+    $("notesStatus").textContent = ""; notesControls(n); renderChat(n);
+    try {
+      const abs = await n.abstracts;
+      if (!notesCurrent(n, signal)) return;
+      const r = n.r;
+      const talk = { key: n.key, title: r.t, conf: CONF_NAMES[r.c] || r.c, year: r.y, kind: r.k, authors: r.a || [], url: r.u, pdf: r.pdf || "", openreview: r.or || "", abstract: abs[r.id] || "" };
+      const data = await agentFetch(n, "/" + action, { talk, agent, ...(action === "ask" ? { question, t } : {}) }, signal);
+      if (!notesCurrent(n, signal)) return;
+      if (action === "ask") {
+        n.messages = Array.isArray(data.messages) ? data.messages : [...n.messages, n.pending, { role: "assistant", agent, text: data.answer, t }];
+        $("notesQuestion").value = "";
+      } else {
+        n.revision++; n.note = String(data.note || ""); n.noteLoaded = true;
+        n.vocab = Array.isArray(data.vocab) ? data.vocab : []; n.wordsLoaded = true;
+        selectNotesTab("note"); renderWords(n); $("notesNoteTab").focus();
+        $("notesStatus").textContent = "Note and words saved.";
+      }
+    } catch (e) {
+      if (notesCurrent(n, signal)) $("notesStatus").textContent = "Request failed. " + e.message;
+    } finally {
+      if (notesCurrent(n, signal)) { n.busy = null; n.pending = null; notesControls(n); renderChat(n); }
+    }
+  }
+  function closeNotes(focus = true) {
+    const open = document.body.classList.contains("notes-sheet-open");
+    document.body.classList.remove("notes-sheet-open");
+    $("notesPanel").removeAttribute("role"); $("notesPanel").removeAttribute("aria-modal");
+    $("notesOpen").setAttribute("aria-expanded", "false");
+    if (open && focus && !notesWide.matches) $("notesOpen").focus();
+  }
+  function disposeNotes() {
+    closeNotes(false);
+    if (notes) { notes.controller.abort(); notes.agentController.abort(); }
+    if (notesPage) notesPage.abort();
+    notes = null; notesPage = null;
+    $("notesPanel").hidden = true; $("notesOpen").hidden = true;
+  }
+  function initNotes(r, abstracts) {
+    const n = notes = { r, abstracts, key: r.c + "-" + r.y + "-" + r.id, controller: new AbortController(), agentController: new AbortController(), url: String(store.get("agentURL", "http://localhost:8787")), token: String(store.get("agentToken", "")), connected: false, testing: false, agents: {}, messages: [], note: "", vocab: [], revision: 0 };
+    $("notesURL").value = n.url; $("notesToken").value = n.token;
+    $("notesAgent").value = store.get("notesAgent", "claude") === "codex" ? "codex" : "claude";
+    [...$("notesAgent").options].forEach((o) => { o.disabled = false; });
+    ["notesQuestion", "notesTime"].forEach((id) => { $(id).value = ""; });
+    ["notesStatus", "notesConnectionStatus", "notesNote"].forEach((id) => { $(id).textContent = ""; });
+    $("notesConnection").open = false;
+    $("notesPanel").hidden = false; $("notesOpen").hidden = false;
+    selectNotesTab("ask"); renderChat(n); renderWords(n); notesControls(n);
+    notesFetch("talks/" + encodeURIComponent(n.key) + ".md", n.controller.signal).catch(() => "").then((note) => {
+      if (!notesCurrent(n) || n.revision) return;
+      n.note = note; n.noteLoaded = true;
+      if (n.tab === "note") renderNote(n);
+    });
+    notesFetch("vocab.json", n.controller.signal).catch(() => []).then((vocab) => {
+      if (!notesCurrent(n) || n.revision) return;
+      n.vocab = Array.isArray(vocab) ? vocab.filter((v) => v && v.key === n.key) : []; n.wordsLoaded = true; renderWords(n);
+    });
+    if (n.token) testNotes(n);
+  }
+  $("notesTabs").onclick = (e) => { const b = e.target.closest("[data-notes-tab]"); if (b) selectNotesTab(b.dataset.notesTab); };
+  $("notesTabs").onkeydown = (e) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    const tabs = [...$("notesTabs").children], i = tabs.indexOf(document.activeElement);
+    const b = tabs[e.key === "Home" ? 0 : e.key === "End" ? 2 : (i + (e.key === "ArrowRight" ? 1 : 2)) % 3];
+    e.preventDefault(); selectNotesTab(b.dataset.notesTab); b.focus();
+  };
+  $("notesForm").onsubmit = (e) => { e.preventDefault(); runNotes("ask"); };
+  $("notesOrganize").onclick = () => runNotes("organize");
+  $("notesQuestion").onkeydown = (e) => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); runNotes("ask"); } };
+  $("notesQuestion").onfocus = () => { const v = document.querySelector("#player video"); if (v && hasTime(v.currentTime)) $("notesTime").value = timeText(v.currentTime); };
+  $("notesAgent").onchange = () => { store.set("notesAgent", $("notesAgent").value); if (notes) notesControls(notes); };
+  $("notesTest").onclick = () => testNotes(notes);
+  ["notesURL", "notesToken"].forEach((id) => { $(id).onchange = () => {
+    store.set("agentURL", $("notesURL").value.trim().replace(/\/+$/, "")); store.set("agentToken", $("notesToken").value.trim());
+    if (!notes) return;
+    const n = notes; n.agentController.abort(); n.agentController = new AbortController();
+    n.url = $("notesURL").value.trim().replace(/\/+$/, ""); n.token = $("notesToken").value.trim();
+    n.connected = false; n.testing = false; n.busy = null; n.pending = null; n.messages = []; n.agents = {};
+    [...$("notesAgent").options].forEach((o) => { o.disabled = false; });
+    $("notesConnectionStatus").textContent = "Test the connection to load chat history."; $("notesStatus").textContent = "";
+    notesControls(n); renderChat(n);
+  }; });
+  $("notesOpen").onclick = () => {
+    if (!notes || notesWide.matches) return;
+    document.body.classList.add("notes-sheet-open");
+    $("notesPanel").setAttribute("role", "dialog"); $("notesPanel").setAttribute("aria-modal", "true");
+    $("notesOpen").setAttribute("aria-expanded", "true"); $("notesClose").focus();
+  };
+  $("notesClose").onclick = () => closeNotes(); $("notesShade").onclick = () => closeNotes();
+  notesWide.addEventListener("change", () => closeNotes(false));
+  document.addEventListener("keydown", (e) => {
+    if (!document.body.classList.contains("notes-sheet-open")) return;
+    if (e.key === "Escape") { e.preventDefault(); closeNotes(); }
+    if (e.key !== "Tab") return;
+    const els = [...$("notesPanel").querySelectorAll('button, input, textarea, select, summary, a[href], [tabindex="0"]')].filter((el) => !el.disabled && el.tabIndex >= 0 && el.getClientRects().length);
+    const first = els[0], last = els[els.length - 1];
+    if (!$("notesPanel").contains(document.activeElement)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+    else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  });
+  $("notesWords").onclick = (e) => {
+    const b = e.target.closest("[data-seek]"), v = document.querySelector("#player video");
+    if (b && v) { try { v.currentTime = +b.dataset.seek; closeNotes(); } catch { /* video not seekable yet */ } }
+  };
+
+  // ------------------------------------------------------------- notes library
+  async function showNotesLibrary() {
+    const page = notesPage = new AbortController();
+    document.title = "My notes · ML Talks"; $("libBtn").classList.add("on");
+    $("notedTalks").textContent = "Loading notes…"; $("allWords").textContent = "Loading vocabulary…"; $("vocabSearch").value = "";
+    let words = [];
+    const render = () => {
+      const q = $("vocabSearch").value.trim().toLowerCase();
+      const entries = words.filter((v) => [v.term, v.explanation, v.title].join(" ").toLowerCase().includes(q));
+      $("allWords").innerHTML = wordsHTML(entries, true) || `<p class="notes-hint">${q ? "No matching words." : "No vocabulary available yet."}</p>`;
+    };
+    $("vocabSearch").oninput = render;
+    await Promise.all([
+      notesFetch("index.json", page.signal).catch(() => []).then((items) => {
+        if (notesPage !== page) return;
+        $("notedTalks").innerHTML = (Array.isArray(items) ? items : []).filter((r) => r && noteLink(r.key)).map((r) => `<a class="notes-entry" href="${esc(noteLink(r.key))}"><h3>${esc(r.title)}</h3><div class="notes-hint">${esc(CONF_NAMES[r.conf] || r.conf)} ${esc(r.year)} · Updated ${esc(r.updated)}</div></a>`).join("") || `<p class="notes-hint">No notes available yet.</p>`;
+      }),
+      notesFetch("vocab.json", page.signal).catch(() => []).then((items) => {
+        if (notesPage !== page) return;
+        words = (Array.isArray(items) ? items : []).filter((v) => v && typeof v === "object"); render();
+      }),
+    ]);
+  }
+
   // ------------------------------------------------------------- router
   async function route() {
+    const token = ++routeToken;
+    ++refreshToken;
+    disposeNotes();
     const h = location.hash || "#/";
     const m = h.match(/^#\/w\/([a-z]+)\/(\d{4})\/([^/?#]+)/);
-    $("home").hidden = !!m;
-    $("filters").hidden = !!m || h === "#/lib";
+    $("home").hidden = !!m || h === "#/notes";
+    $("filters").hidden = !!m || h === "#/lib" || h === "#/notes";
     $("watch").hidden = !m;
-    if (!m) { $("player").innerHTML = ""; document.title = "ML Talks"; }
+    $("notesLibrary").hidden = h !== "#/notes";
+    $("player").innerHTML = "";
+    ["wTitle", "wMeta", "wAuthors", "wLinks", "vidChips", "related"].forEach((id) => { $(id).textContent = ""; });
+    $("wAbsBox").hidden = true;
+    if (!m) document.title = "ML Talks";
     window.scrollTo(0, 0);
-    if (m) return showWatch(m[1], +m[2], decodeURIComponent(m[3]));
-    if (h === "#/lib") return showLibrary();
+    if (m) return showWatch(m[1], +m[2], decodeURIComponent(m[3]), token);
+    if (h === "#/lib") return showLibrary(token);
+    if (h === "#/notes") return showNotesLibrary();
     $("libBtn").classList.remove("on");
     return refresh();
   }
